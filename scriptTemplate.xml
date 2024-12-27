@@ -1,0 +1,305 @@
+<script type="application/ecmascript">
+    <![CDATA[
+      const slides = ${slides};
+
+      //const slides = {
+      //  boxes: {
+      //    'box1': {
+      //      topLeft: { x: -41.209022521972656, y: -37.93417739868164 },
+      //      bottomRight: { x: 479.6108093261719, y: 1000.4503784179688 }
+      //    }
+      //  },
+      //  initialBox: 'box1',
+      //  transitions: []
+      //};
+
+      const svg = document.querySelector('svg');
+      const viewBox = svg.viewBox.baseVal;
+
+      let nextTransitionIndex = 0;
+      let currentAnimationFrameId = null;
+
+      window.addEventListener('resize', resizeSvgToFullAvailableScreenSize);
+      resizeSvgToFullAvailableScreenSize();
+      if(typeof slides !== 'undefined') {
+        animateToBox(slides.boxes[slides.initialBox], 0);
+      }
+
+      let toolState = initializeHandToolState();
+
+      function resizeSvgToFullAvailableScreenSize() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        svg.setAttribute('width', width);
+        svg.setAttribute('height', height);
+      }
+
+      function browserToSVGCoordinates(browserX, browserY) {
+        const browserPoint = svg.createSVGPoint();
+        browserPoint.x = browserX;
+        browserPoint.y = browserY;
+        const svgPoint = browserPoint.matrixTransform(svg.getScreenCTM().inverse());
+        return svgPoint;
+      }
+
+      function changeViewBox(newViewBoxX, newViewBoxY, newViewBoxWidth, newViewBoxHeight) {
+        const previousViewBoxWidth = viewBox.width;
+        const scale = newViewBoxWidth / previousViewBoxWidth;
+        svg.setAttribute('viewBox', `${newViewBoxX} ${newViewBoxY} ${newViewBoxWidth} ${newViewBoxHeight}`);
+      }
+
+      function initializeLaserToolState() {
+        svg.style.cursor = 'crosshair';
+
+        const state = {
+          type: 'LaserTool',
+          drawingPath: null,
+          onMouseDown: (e) => {
+            e.preventDefault();
+            const startingPoint = browserToSVGCoordinates(e.clientX, e.clientY);
+            console.log(`SVG coordinates: { x: ${startingPoint.x}, y: ${startingPoint.y} }`);
+            state.drawingPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            state.drawingPath.setAttribute('d', `M ${startingPoint.x} ${startingPoint.y}`);
+            state.drawingPath.setAttribute('fill', 'none');
+            state.drawingPath.setAttribute('stroke', 'red');
+            state.drawingPath.setAttribute('stroke-width', '2');
+            state.drawingPath.setAttribute('stroke-linecap', 'round');
+            state.drawingPath.setAttribute('style', 'filter: drop-shadow(0 0 4px red);');
+            svg.appendChild(state.drawingPath);
+          },
+          onMouseMove: (e) => {
+            e.preventDefault();
+            if(!state.drawingPath) {
+              return;
+            }
+            const currentPoint = browserToSVGCoordinates(e.clientX, e.clientY);
+            const d = state.drawingPath.getAttribute('d');
+            state.drawingPath.setAttribute('d', `${d} L ${currentPoint.x} ${currentPoint.y}`);
+          },
+          onMouseUp: (e) => {
+            e.preventDefault();
+            const pathToFadeAndRemove = state.drawingPath;
+            if(pathToFadeAndRemove) {
+              state.drawingPath = null;
+              pathToFadeAndRemove.animate([{ opacity: 1 }, { opacity: 0 }], {
+                duration: 5000, // Fade out duration
+                easing: 'ease-out',
+              }).onfinish = () => {
+                pathToFadeAndRemove.remove();
+              };
+            }
+          },
+          onWheel: (e) => {
+            onWheelHandler(e);
+          }
+        };
+
+        return state;
+      }
+
+      function initializeHandToolState() {
+        svg.style.cursor = 'grab';
+
+        const state = {
+          type: 'HandTool',
+          isDragging: false,
+          previousX: null,
+          previousY: null,
+          onMouseDown: (e) => {
+            e.preventDefault();
+            state.isDragging = true;
+            svg.style.cursor = 'grabbing';
+            state.previousX = e.clientX;
+            state.previousY = e.clientY;
+          },
+          onMouseMove: (e) => {
+            e.preventDefault();
+            if(!state.isDragging) {
+              return;
+            }
+
+            const dx = (state.previousX - e.clientX) * (viewBox.width / svg.clientWidth);
+            const dy = (state.previousY - e.clientY) * (viewBox.height / svg.clientHeight);
+            const newViewBoxX = viewBox.x + dx;
+            const newViewBoxY = viewBox.y + dy;
+            const newViewBoxWidth = viewBox.width;
+            const newViewBoxHeight = viewBox.height;
+
+            changeViewBox(newViewBoxX, newViewBoxY, newViewBoxWidth, newViewBoxHeight);
+
+            state.previousX = e.clientX;
+            state.previousY = e.clientY;
+          },
+          onMouseUp: (e) => {
+            state.isDragging = false;
+            svg.style.cursor = 'grab';
+          },
+          onWheel: (e) => {
+            onWheelHandler(e);
+          }
+        };
+
+        return state;
+      }
+
+      function onWheelHandler(e) {
+        const zoomFactor = 1.05; // Change to zoom more or less on every scroll increment
+        const scaleFactor = e.deltaY < 0 ? 1 / zoomFactor : zoomFactor;
+
+        const newViewBoxWidth = viewBox.width * scaleFactor;
+        const newViewBoxHeight = viewBox.height * scaleFactor;
+
+        const svgRect = svg.getBoundingClientRect();
+        const mouseX = e.clientX - svgRect.left;
+        const mouseY = e.clientY - svgRect.top;
+        const mouseSvgX = viewBox.x + (mouseX / svgRect.width) * viewBox.width;
+        const mouseSvgY = viewBox.y + (mouseY / svgRect.height) * viewBox.height;
+
+        const newViewBoxX = mouseSvgX - (mouseSvgX - viewBox.x) * scaleFactor;
+        const newViewBoxY = mouseSvgY - (mouseSvgY - viewBox.y) * scaleFactor;
+
+        changeViewBox(newViewBoxX, newViewBoxY, newViewBoxWidth, newViewBoxHeight);
+      }
+
+      function adjustedViewBox(targetBox) {
+        const x = targetBox.topLeft.x;
+        const y = targetBox.topLeft.y;
+        const width = targetBox.bottomRight.x - targetBox.topLeft.x;
+        const height = targetBox.bottomRight.y - targetBox.topLeft.y;
+
+
+        const rectAspectRatio = width / height;
+
+        // Calculate the aspect ratio of the viewport
+        const svgWidth = svg.clientWidth || svg.getBoundingClientRect().width;
+        const svgHeight = svg.clientHeight || svg.getBoundingClientRect().height;
+        const viewportAspectRatio = svgWidth / svgHeight;
+
+        // Adjust the viewBox dimensions to preserve the aspect ratio
+        let adjustedWidth, adjustedHeight, offsetX, offsetY;
+
+        if (rectAspectRatio > viewportAspectRatio) {
+            // Rectangle is wider than the viewport: match width, pad height
+            adjustedWidth = width;
+            adjustedHeight = width / viewportAspectRatio;
+            offsetX = x;
+            offsetY = y - (adjustedHeight - height) / 2;
+        } else {
+            // Rectangle is taller than the viewport: match height, pad width
+            adjustedWidth = height * viewportAspectRatio;
+            adjustedHeight = height;
+            offsetX = x - (adjustedWidth - width) / 2;
+            offsetY = y;
+        }
+
+        return {
+          x: offsetX,
+          y: offsetY,
+          width: adjustedWidth,
+          height: adjustedHeight
+        };
+      }
+
+      function animateToBox(targetBox, animationDurationMillis) {
+        if(currentAnimationFrameId) {
+          cancelAnimationFrame(currentAnimationFrameId);
+        }
+
+        const adjustedTargetViewBox = adjustedViewBox(targetBox);
+        const currentViewBox = { x: viewBox.x, y: viewBox.y, width: viewBox.width, height: viewBox.height};
+
+        currentAnimationFrameId = requestAnimationFrame((currentTimestamp) => doAnimateToBox(currentViewBox, adjustedTargetViewBox, currentTimestamp, currentTimestamp, animationDurationMillis));
+      }
+
+      function doAnimateToBox(startBox, targetBox, startTimestamp, currentTimestamp, animationDurationMillis) {
+        const elapsedTime = currentTimestamp - startTimestamp;
+        const progress = animationDurationMillis === 0 ? 1 : Math.min(elapsedTime / animationDurationMillis, 1);
+        const adjustedProgress = easeInOutQuad(progress); // Smoother, more natural transition, accelerates then decelerates
+
+        const intermediateViewBox = {
+          x: startBox.x + (targetBox.x - startBox.x) * adjustedProgress,
+          y: startBox.y + (targetBox.y - startBox.y) * adjustedProgress,
+          width: startBox.width + (targetBox.width - startBox.width) * adjustedProgress,
+          height: startBox.height + (targetBox.height - startBox.height) * adjustedProgress
+        };
+
+        changeViewBox(intermediateViewBox.x, intermediateViewBox.y, intermediateViewBox.width, intermediateViewBox.height);
+
+        if(progress < 1) {
+          currentAnimationFrameId = requestAnimationFrame((currentTimestamp) => doAnimateToBox(startBox, targetBox, startTimestamp, currentTimestamp, animationDurationMillis));
+        } else {
+          currentAnimationFrameId = null;
+        }
+      }
+
+      function easeInOutQuad(progress) {
+        return progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      }
+
+      function processNextTransition() {
+        if(typeof slides !== 'undefined') {
+          const nextBox = nextTransitionIndex === slides.transitions.length ? slides.boxes[slides.initialBox] : slides.boxes[slides.transitions[nextTransitionIndex].nextBox];
+          const animationDurationMillis = nextTransitionIndex === slides.transitions.length ? 0 : slides.transitions[nextTransitionIndex].animationDurationMillis;
+          animateToBox(nextBox, animationDurationMillis);
+          nextTransitionIndex = nextTransitionIndex + 1;
+          nextTransitionIndex = nextTransitionIndex % (slides.transitions.length + 1);
+        }
+      }
+
+      function processPreviousTransition() {
+        if(typeof slides !== 'undefined') {
+          nextTransitionIndex = nextTransitionIndex - 1 + (slides.transitions.length + 1);
+          nextTransitionIndex = nextTransitionIndex % (slides.transitions.length + 1);
+          const previousBox = nextTransitionIndex === 0 ? slides.boxes[slides.initialBox] : slides.boxes[slides.transitions[nextTransitionIndex - 1].nextBox];
+          const animationDurationMillis = nextTransitionIndex === slides.transitions.length ? 0 : slides.transitions[nextTransitionIndex].animationDurationMillis;
+          animateToBox(previousBox, animationDurationMillis);
+        }
+      }
+
+      svg.addEventListener('mousedown', (e) => {
+        const onMouseDownHandler = toolState.onMouseDown;
+        if(onMouseDownHandler) {
+          onMouseDownHandler(e);
+        }
+      });
+
+      svg.addEventListener('mousemove', (e) => {
+        const onMouseMoveHandler = toolState.onMouseMove;
+        if(onMouseMoveHandler) {
+          onMouseMoveHandler(e);
+        }
+      });
+
+      svg.addEventListener('mouseup', (e) => {
+        const onMouseUpHandler = toolState.onMouseUp;
+        if(onMouseUpHandler) {
+          onMouseUpHandler(e);
+        }
+      });
+
+      svg.addEventListener('wheel', (e) => {
+        const onWheelHandler = toolState.onWheel;
+        if(onWheelHandler) {
+          onWheelHandler(e);
+        }
+      });
+
+      svg.addEventListener('keydown', (e) => {
+        if(e.key === ' ') {
+          e.preventDefault();
+          if(toolState.type === 'HandTool') {
+            toolState = initializeLaserToolState();
+          } else if(toolState.type === 'LaserTool') {
+            toolState = initializeHandToolState();
+          } else {
+            console.log(`Unsupported toolState.type=${toolState.type}`)
+          }
+        } else if(e.key === 'ArrowRight') {
+          processNextTransition();
+        } else if(e.key === 'ArrowLeft') {
+          processPreviousTransition();
+        }
+      });
+
+    ]]>
+</script> 
