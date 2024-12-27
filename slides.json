@@ -1,0 +1,33 @@
+{
+    "boxes": { 
+        "box1": {
+            "topLeft": { "x": -24.81206703186035, "y": -26.983182907104492 },
+            "bottomRight": { "x": 1061.992431640625, "y": 316.8548278808594 }
+        }, "box2": {
+            "topLeft": { "x": -17.818933486938477, "y": -1.4024609327316284 },
+            "bottomRight": { "x": 279.4370422363281, "y": 257.007568359375 }
+        }, "box3": {
+            "topLeft": { "x": 314.63232421875, "y": 18.86309814453125 },
+            "bottomRight": { "x": 702.9320678710938, "y": 327.34234619140625 }
+        }, "box4": {
+            "topLeft": { "x": 640.8702392578125, "y": 9.047420501708984 },
+            "bottomRight": { "x": 1056.4620361328125, "y": 335.4712829589844 }
+        }
+     },
+     "initialBox": "box1",
+     "transitions": [
+        {
+            "nextBox": "box2",
+            "animationDurationMillis": 1500
+        }, {
+            "nextBox": "box3",
+            "animationDurationMillis": 1500
+        }, {
+            "nextBox": "box4",
+            "animationDurationMillis": 1500
+        }, {
+            "nextBox": "box1",
+            "animationDurationMillis": 3000
+        }
+     ]
+}
