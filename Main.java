@@ -62,6 +62,17 @@ public class Main {
             elementWithFontFamilyAttribute.attr("font-family", fontFamilyAttribute);
         }
 
+        // <iframe ... allowfullscreen> just breaks on chrome, needs specific value for attribute, like
+        // <iframe ... allowfullscreen=""> instead
+        for (var element : svgDocument.getAllElements()) {
+            var attributes = element.attributes();
+            for (var attribute : attributes) {
+                if (attribute.getKey().equalsIgnoreCase("allowfullscreen")) {
+                    attribute.setValue(" "); // Force ="" explicitly
+                }
+            }
+        }
+
         try(var fileWriter = new BufferedWriter(new FileWriter(new File(outputFile)))) {
             fileWriter.write(svgDocument.selectFirst("svg").outerHtml());
         }
@@ -151,31 +162,31 @@ public class Main {
     private static final class CmdLine {
 
         @Option(
-            name = "-inputFile",
-            required = true,
-            usage = "-inputFile /path/to/someFile.svg the input svg file"
+                name = "-inputFile",
+                required = true,
+                usage = "-inputFile /path/to/someFile.svg the input svg file"
         )
         private String inputFile = null;
 
         @Option(
-            name = "-outputFile",
-            required = true,
-            usage = "-outputFile /path/to/someOutputFile.svg the output svg file"
+                name = "-outputFile",
+                required = true,
+                usage = "-outputFile /path/to/someOutputFile.svg the output svg file"
         )
         private String outputFile = null;
 
         @Option(
-            name = "-slidesFile",
-            required = true,
-            usage = "-slidesFile /path/to/some/slidesFile.json the input slides file"
+                name = "-slidesFile",
+                required = true,
+                usage = "-slidesFile /path/to/some/slidesFile.json the input slides file"
         )
         private String slidesFile = null;
 
         @Option(
-            name = "-fontsSubstitutionsFile",
-            required = false,
-            usage = "-fontsSubstitutionsFile /path/to/some/fontsSubstitutions.json the font substitutions file"
+                name = "-fontsSubstitutionsFile",
+                required = false,
+                usage = "-fontsSubstitutionsFile /path/to/some/fontsSubstitutions.json the font substitutions file"
         )
         private String fontsSubstitutionsFile = null;
     }
-} 
+}
